@@ -4,12 +4,11 @@ import { createRoot } from "react-dom/client";
 import { WebsimSocket, useQuery } from "@websim/use-query";
 const room = new WebsimSocket();
 const CHARACTERS = [
-  { name: "Rumi", color: "#ff1493", power: "Lightning Strike" },
-  { name: "Mira", color: "#00ffff", power: "Ice Crystal" },
-  { name: "Zoey", color: "#ff6b35", power: "Fire Blast" }
+  { name: "Rumi", color: "#ff1493", power: "Lightning Strike", bpm: 120 },
+  { name: "Mira", color: "#00ffff", power: "Ice Crystal", bpm: 128 },
+  { name: "Zoey", color: "#ff6b35", power: "Fire Blast", bpm: 125 }
 ];
 const GAME_DURATION = 60;
-const BEAT_INTERVAL = 600;
 function GameScreen({ character, onGameEnd, onBack }) {
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -106,6 +105,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
         setDemons((prev) => [...prev, newDemon]);
       }
     }, 2e3);
+    const beatInterval = 6e4 / character.bpm;
     const beatSpawner = setInterval(() => {
       const newBeat = {
         id: Date.now() + Math.random(),
@@ -122,7 +122,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
         beatAudioRef.current.play().catch(() => {
         });
       }
-    }, BEAT_INTERVAL);
+    }, beatInterval);
     gameLoopRef.current = { timer, demonSpawner, beatSpawner };
   };
   const endGame = async () => {
