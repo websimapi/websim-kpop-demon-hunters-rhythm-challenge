@@ -22,14 +22,45 @@ function GameScreen({ character, onGameEnd, onBack }) {
   const beatAudioRef = useRef();
   const spellAudioRef = useRef();
   const defeatAudioRef = useRef();
+  const animationFrameRef = useRef();
   useEffect(() => {
     beatAudioRef.current = new Audio("beat-sound.mp3");
     spellAudioRef.current = new Audio("spell-cast.mp3");
     defeatAudioRef.current = new Audio("demon-defeat.mp3");
     return () => {
-      if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+      if (gameLoopRef.current) {
+        clearInterval(gameLoopRef.current.timer);
+        clearInterval(gameLoopRef.current.demonSpawner);
+        clearInterval(gameLoopRef.current.beatSpawner);
+      }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
   }, []);
+  const updateGame = useCallback(() => {
+    if (!gameActive) return;
+    setBeatTargets((prev) => {
+      const now = Date.now();
+      return prev.map((beat) => {
+        const elapsed = now - beat.spawnTime;
+        const progress = elapsed / beat.duration;
+        const newY = 20 + progress * 60;
+        return { ...beat, y: newY, progress };
+      }).filter((beat) => beat.progress < 1.2);
+    });
+    animationFrameRef.current = requestAnimationFrame(updateGame);
+  }, [gameActive]);
+  useEffect(() => {
+    if (gameActive) {
+      animationFrameRef.current = requestAnimationFrame(updateGame);
+    }
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [gameActive, updateGame]);
   const startGame = () => {
     setGameActive(true);
     setScore(0);
@@ -50,7 +81,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
     const demonSpawner = setInterval(() => {
       if (Math.random() < 0.3) {
         const newDemon = {
-          id: Date.now(),
+          id: Date.now() + Math.random(),
           x: Math.random() * 80 + 10,
           y: Math.random() * 60 + 20,
           health: 3
@@ -60,9 +91,13 @@ function GameScreen({ character, onGameEnd, onBack }) {
     }, 2e3);
     const beatSpawner = setInterval(() => {
       const newBeat = {
-        id: Date.now(),
+        id: Date.now() + Math.random(),
         x: Math.random() * 90 + 5,
-        timing: Date.now() + 2e3
+        y: 20,
+        spawnTime: Date.now(),
+        duration: 2e3,
+        // Time to reach hit zone
+        progress: 0
       };
       setBeatTargets((prev) => [...prev, newBeat]);
       if (beatAudioRef.current) {
@@ -79,6 +114,10 @@ function GameScreen({ character, onGameEnd, onBack }) {
       clearInterval(gameLoopRef.current.timer);
       clearInterval(gameLoopRef.current.demonSpawner);
       clearInterval(gameLoopRef.current.beatSpawner);
+      gameLoopRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
     }
     const currentUser = await window.websim.getCurrentUser();
     await room.collection("game_scores").upsert({
@@ -92,21 +131,21 @@ function GameScreen({ character, onGameEnd, onBack }) {
   const handleBeatClick = (beatId, event) => {
     const beat = beatTargets.find((b) => b.id === beatId);
     if (!beat) return;
-    const now = Date.now();
-    const timeDiff = Math.abs(now - beat.timing);
+    const perfectY = 80;
+    const hitDistance = Math.abs(beat.y - perfectY);
     let hitQuality = "miss";
     let points = 0;
-    if (timeDiff < 100) {
+    if (hitDistance < 5) {
       hitQuality = "perfect";
       points = 100 + combo * 10;
       setCombo((prev) => prev + 1);
       setShowPerfect(true);
       setTimeout(() => setShowPerfect(false), 500);
-    } else if (timeDiff < 200) {
+    } else if (hitDistance < 10) {
       hitQuality = "good";
       points = 50 + combo * 5;
       setCombo((prev) => prev + 1);
-    } else if (timeDiff < 300) {
+    } else if (hitDistance < 15) {
       hitQuality = "ok";
       points = 25;
       setCombo(0);
@@ -122,9 +161,9 @@ function GameScreen({ character, onGameEnd, onBack }) {
       }
       setDemons((prev) => prev.map((demon) => {
         const distance = Math.sqrt(
-          Math.pow(demon.x - event.clientX / window.innerWidth * 100, 2) + Math.pow(demon.y - event.clientY / window.innerHeight * 100, 2)
+          Math.pow(demon.x - beat.x, 2) + Math.pow(demon.y - beat.y, 2)
         );
-        if (distance < 20) {
+        if (distance < 25) {
           const newHealth = demon.health - 1;
           if (newHealth <= 0) {
             if (defeatAudioRef.current) {
@@ -145,13 +184,29 @@ function GameScreen({ character, onGameEnd, onBack }) {
   return /* @__PURE__ */ jsxDEV("div", { className: "game-screen h-screen relative overflow-hidden", children: [
     /* @__PURE__ */ jsxDEV("div", { className: "game-bg absolute inset-0" }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 178,
+      lineNumber: 223,
+      columnNumber: 13
+    }, this),
+    /* @__PURE__ */ jsxDEV("div", { className: "absolute left-0 right-0 z-5", style: { top: "80%" }, children: [
+      /* @__PURE__ */ jsxDEV("div", { className: "h-1 bg-white bg-opacity-50 mx-4" }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 227,
+        columnNumber: 17
+      }, this),
+      /* @__PURE__ */ jsxDEV("div", { className: "text-center text-white text-sm mt-1", children: "Hit Zone" }, void 0, false, {
+        fileName: "<stdin>",
+        lineNumber: 228,
+        columnNumber: 17
+      }, this)
+    ] }, void 0, true, {
+      fileName: "<stdin>",
+      lineNumber: 226,
       columnNumber: 13
     }, this),
     /* @__PURE__ */ jsxDEV("div", { className: "absolute top-0 left-0 right-0 z-20 p-4 flex justify-between items-center", children: [
       /* @__PURE__ */ jsxDEV("button", { onClick: onBack, className: "neon-button text-sm", children: "\u2190 Back" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 182,
+        lineNumber: 233,
         columnNumber: 17
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "text-center", children: [
@@ -160,7 +215,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
           score.toLocaleString()
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 184,
+          lineNumber: 235,
           columnNumber: 21
         }, this),
         /* @__PURE__ */ jsxDEV("div", { className: "text-cyan-300", children: [
@@ -169,12 +224,12 @@ function GameScreen({ character, onGameEnd, onBack }) {
           "x"
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 185,
+          lineNumber: 236,
           columnNumber: 21
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 183,
+        lineNumber: 234,
         columnNumber: 17
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "text-right", children: [
@@ -184,7 +239,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
           "s"
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 188,
+          lineNumber: 239,
           columnNumber: 21
         }, this),
         /* @__PURE__ */ jsxDEV("div", { className: "text-sm", style: { color: character.color }, children: [
@@ -192,26 +247,26 @@ function GameScreen({ character, onGameEnd, onBack }) {
           character.name
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 189,
+          lineNumber: 240,
           columnNumber: 21
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 187,
+        lineNumber: 238,
         columnNumber: 17
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 181,
+      lineNumber: 232,
       columnNumber: 13
     }, this),
     showPerfect && /* @__PURE__ */ jsxDEV("div", { className: "absolute inset-0 flex items-center justify-center z-30 pointer-events-none", children: /* @__PURE__ */ jsxDEV("div", { className: "perfect-hit text-6xl font-bold text-yellow-300 drop-shadow-lg animate-pulse", children: "PERFECT!" }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 198,
+      lineNumber: 249,
       columnNumber: 21
     }, this) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 197,
+      lineNumber: 248,
       columnNumber: 17
     }, this),
     /* @__PURE__ */ jsxDEV("div", { className: "absolute inset-0 z-10", children: [
@@ -235,13 +290,13 @@ function GameScreen({ character, onGameEnd, onBack }) {
             false,
             {
               fileName: "<stdin>",
-              lineNumber: 219,
+              lineNumber: 270,
               columnNumber: 29
             },
             this
           ) }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 218,
+            lineNumber: 269,
             columnNumber: 25
           }, this)
         },
@@ -249,7 +304,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
         false,
         {
           fileName: "<stdin>",
-          lineNumber: 208,
+          lineNumber: 259,
           columnNumber: 21
         },
         this
@@ -257,12 +312,13 @@ function GameScreen({ character, onGameEnd, onBack }) {
       beatTargets.map((beat) => /* @__PURE__ */ jsxDEV(
         "div",
         {
-          className: "beat-target absolute w-16 h-16 rounded-full border-4 cursor-pointer animate-ping",
+          className: "beat-target absolute w-16 h-16 rounded-full border-4 cursor-pointer transition-all duration-75",
           style: {
             left: `${beat.x}%`,
-            top: "80%",
+            top: `${beat.y}%`,
             borderColor: character.color,
-            boxShadow: `0 0 30px ${character.color}`
+            boxShadow: `0 0 30px ${character.color}`,
+            opacity: Math.max(0.3, 1 - beat.progress * 0.5)
           },
           onClick: (e) => handleBeatClick(beat.id, e),
           children: /* @__PURE__ */ jsxDEV(
@@ -275,7 +331,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
             false,
             {
               fileName: "<stdin>",
-              lineNumber: 240,
+              lineNumber: 292,
               columnNumber: 25
             },
             this
@@ -285,14 +341,14 @@ function GameScreen({ character, onGameEnd, onBack }) {
         false,
         {
           fileName: "<stdin>",
-          lineNumber: 229,
+          lineNumber: 280,
           columnNumber: 21
         },
         this
       ))
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 205,
+      lineNumber: 256,
       columnNumber: 13
     }, this),
     !gameActive && timeLeft === GAME_DURATION && /* @__PURE__ */ jsxDEV("div", { className: "absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center z-40", children: /* @__PURE__ */ jsxDEV("div", { className: "text-center", children: [
@@ -302,35 +358,35 @@ function GameScreen({ character, onGameEnd, onBack }) {
         "?"
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 252,
+        lineNumber: 304,
         columnNumber: 25
       }, this),
       /* @__PURE__ */ jsxDEV("p", { className: "text-lg text-gray-300 mb-6", children: [
-        "Tap the beat circles in rhythm to cast ",
+        "Tap the beat circles when they reach the hit zone to cast ",
         character.power,
         " spells!"
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 255,
+        lineNumber: 307,
         columnNumber: 25
       }, this),
       /* @__PURE__ */ jsxDEV("button", { onClick: startGame, className: "neon-button text-2xl px-8 py-4", children: "Start Game" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 258,
+        lineNumber: 310,
         columnNumber: 25
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 251,
+      lineNumber: 303,
       columnNumber: 21
     }, this) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 250,
+      lineNumber: 302,
       columnNumber: 17
     }, this)
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 177,
+    lineNumber: 222,
     columnNumber: 9
   }, this);
 }
@@ -348,27 +404,27 @@ function Leaderboard({ onBack }) {
     /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between mb-8", children: [
       /* @__PURE__ */ jsxDEV("button", { onClick: onBack, className: "neon-button", children: "\u2190 Back" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 283,
+        lineNumber: 335,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("h1", { className: "text-4xl font-bold text-white", children: "Demon Hunter Leaderboard" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 284,
+        lineNumber: 336,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("div", {}, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 285,
+        lineNumber: 337,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 282,
+      lineNumber: 334,
       columnNumber: 17
     }, this),
     loading ? /* @__PURE__ */ jsxDEV("div", { className: "text-center text-white text-xl", children: "Loading scores..." }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 289,
+      lineNumber: 341,
       columnNumber: 21
     }, this) : /* @__PURE__ */ jsxDEV("div", { className: "leaderboard-grid", children: scores.map((score, index) => /* @__PURE__ */ jsxDEV("div", { className: "leaderboard-entry p-4 rounded-lg mb-4", children: /* @__PURE__ */ jsxDEV("div", { className: "flex items-center justify-between", children: [
       /* @__PURE__ */ jsxDEV("div", { className: "flex items-center space-x-4", children: [
@@ -377,7 +433,7 @@ function Leaderboard({ onBack }) {
           index + 1
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 296,
+          lineNumber: 348,
           columnNumber: 41
         }, this),
         /* @__PURE__ */ jsxDEV(
@@ -391,7 +447,7 @@ function Leaderboard({ onBack }) {
           false,
           {
             fileName: "<stdin>",
-            lineNumber: 297,
+            lineNumber: 349,
             columnNumber: 41
           },
           this
@@ -399,30 +455,30 @@ function Leaderboard({ onBack }) {
         /* @__PURE__ */ jsxDEV("div", { children: [
           /* @__PURE__ */ jsxDEV("div", { className: "text-white font-bold", children: score.username }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 303,
+            lineNumber: 355,
             columnNumber: 45
           }, this),
           /* @__PURE__ */ jsxDEV("div", { className: "text-sm", style: {
             color: CHARACTERS.find((c) => c.name === score.character)?.color || "#fff"
           }, children: score.character }, void 0, false, {
             fileName: "<stdin>",
-            lineNumber: 304,
+            lineNumber: 356,
             columnNumber: 45
           }, this)
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 302,
+          lineNumber: 354,
           columnNumber: 41
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 295,
+        lineNumber: 347,
         columnNumber: 37
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "text-right", children: [
         /* @__PURE__ */ jsxDEV("div", { className: "text-2xl font-bold text-yellow-300", children: score.score.toLocaleString() }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 312,
+          lineNumber: 364,
           columnNumber: 41
         }, this),
         /* @__PURE__ */ jsxDEV("div", { className: "text-sm text-gray-400", children: [
@@ -431,34 +487,34 @@ function Leaderboard({ onBack }) {
           "x"
         ] }, void 0, true, {
           fileName: "<stdin>",
-          lineNumber: 315,
+          lineNumber: 367,
           columnNumber: 41
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 311,
+        lineNumber: 363,
         columnNumber: 37
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 294,
+      lineNumber: 346,
       columnNumber: 33
     }, this) }, score.id, false, {
       fileName: "<stdin>",
-      lineNumber: 293,
+      lineNumber: 345,
       columnNumber: 29
     }, this)) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 291,
+      lineNumber: 343,
       columnNumber: 21
     }, this)
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 281,
+    lineNumber: 333,
     columnNumber: 13
   }, this) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 280,
+    lineNumber: 332,
     columnNumber: 9
   }, this);
 }
@@ -481,17 +537,17 @@ function App() {
     return /* @__PURE__ */ jsxDEV("div", { className: "character-select min-h-screen flex items-center justify-center p-6", children: /* @__PURE__ */ jsxDEV("div", { className: "text-center max-w-4xl", children: [
       /* @__PURE__ */ jsxDEV("button", { onClick: showMenu, className: "absolute top-4 left-4 neon-button", children: "\u2190 Back" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 352,
+        lineNumber: 404,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("h1", { className: "text-5xl font-bold text-white mb-4", children: "Choose Your Hunter" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 354,
+        lineNumber: 406,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("p", { className: "text-xl text-gray-300 mb-12", children: "Select a member of HUNTR/X to defend Seoul!" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 355,
+        lineNumber: 407,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "grid grid-cols-1 md:grid-cols-3 gap-8", children: CHARACTERS.map((character) => /* @__PURE__ */ jsxDEV(
@@ -507,7 +563,7 @@ function App() {
                 style: { backgroundColor: character.color, boxShadow: `0 0 30px ${character.color}` },
                 children: /* @__PURE__ */ jsxDEV("div", { className: "w-full h-full flex items-center justify-center text-4xl font-bold text-white", children: character.name[0] }, void 0, false, {
                   fileName: "<stdin>",
-                  lineNumber: 363,
+                  lineNumber: 415,
                   columnNumber: 37
                 }, this)
               },
@@ -515,19 +571,19 @@ function App() {
               false,
               {
                 fileName: "<stdin>",
-                lineNumber: 361,
+                lineNumber: 413,
                 columnNumber: 33
               },
               this
             ),
             /* @__PURE__ */ jsxDEV("h3", { className: "text-2xl font-bold text-white mb-2", children: character.name }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 367,
+              lineNumber: 419,
               columnNumber: 33
             }, this),
             /* @__PURE__ */ jsxDEV("p", { className: "text-lg", style: { color: character.color }, children: character.power }, void 0, false, {
               fileName: "<stdin>",
-              lineNumber: 368,
+              lineNumber: 420,
               columnNumber: 33
             }, this)
           ]
@@ -536,22 +592,22 @@ function App() {
         true,
         {
           fileName: "<stdin>",
-          lineNumber: 359,
+          lineNumber: 411,
           columnNumber: 29
         },
         this
       )) }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 357,
+        lineNumber: 409,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 351,
+      lineNumber: 403,
       columnNumber: 17
     }, this) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 350,
+      lineNumber: 402,
       columnNumber: 13
     }, this);
   }
@@ -567,7 +623,7 @@ function App() {
       false,
       {
         fileName: "<stdin>",
-        lineNumber: 379,
+        lineNumber: 431,
         columnNumber: 13
       },
       this
@@ -577,7 +633,7 @@ function App() {
     return /* @__PURE__ */ jsxDEV("div", { className: "game-over min-h-screen flex items-center justify-center p-6", children: /* @__PURE__ */ jsxDEV("div", { className: "text-center max-w-2xl", children: [
       /* @__PURE__ */ jsxDEV("h1", { className: "text-6xl font-bold text-white mb-4", children: "Mission Complete!" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 391,
+        lineNumber: 443,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "text-4xl font-bold text-yellow-300 mb-6", children: [
@@ -585,7 +641,7 @@ function App() {
         lastScore.toLocaleString()
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 392,
+        lineNumber: 444,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("p", { className: "text-xl text-gray-300 mb-8", children: [
@@ -594,44 +650,44 @@ function App() {
         "!"
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 395,
+        lineNumber: 447,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "space-x-4", children: [
         /* @__PURE__ */ jsxDEV("button", { onClick: showCharacterSelect, className: "neon-button text-xl px-6 py-3", children: "Play Again" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 399,
+          lineNumber: 451,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("button", { onClick: showLeaderboard, className: "neon-button text-xl px-6 py-3", children: "View Leaderboard" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 402,
+          lineNumber: 454,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("button", { onClick: showMenu, className: "neon-button text-xl px-6 py-3", children: "Main Menu" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 405,
+          lineNumber: 457,
           columnNumber: 25
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 398,
+        lineNumber: 450,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 390,
+      lineNumber: 442,
       columnNumber: 17
     }, this) }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 389,
+      lineNumber: 441,
       columnNumber: 13
     }, this);
   }
   if (screen === "leaderboard") {
     return /* @__PURE__ */ jsxDEV(Leaderboard, { onBack: showMenu }, void 0, false, {
       fileName: "<stdin>",
-      lineNumber: 415,
+      lineNumber: 467,
       columnNumber: 16
     }, this);
   }
@@ -639,95 +695,95 @@ function App() {
     /* @__PURE__ */ jsxDEV("div", { className: "logo-section mb-12", children: [
       /* @__PURE__ */ jsxDEV("h1", { className: "text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-500 via-cyan-500 to-orange-500 mb-4", children: "KPOP DEMON HUNTERS" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 422,
+        lineNumber: 474,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("h2", { className: "text-3xl font-bold text-white mb-2", children: "Rhythm Challenge" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 425,
+        lineNumber: 477,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("p", { className: "text-xl text-gray-300", children: "Join HUNTR/X in defending Seoul with the power of music!" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 426,
+        lineNumber: 478,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 421,
+      lineNumber: 473,
       columnNumber: 17
     }, this),
     /* @__PURE__ */ jsxDEV("div", { className: "space-y-6", children: [
       /* @__PURE__ */ jsxDEV("button", { onClick: showCharacterSelect, className: "neon-button text-2xl px-8 py-4 w-full max-w-md", children: "Start Game" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 432,
+        lineNumber: 484,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("button", { onClick: showLeaderboard, className: "neon-button text-2xl px-8 py-4 w-full max-w-md", children: "Leaderboard" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 435,
+        lineNumber: 487,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 431,
+      lineNumber: 483,
       columnNumber: 17
     }, this),
     /* @__PURE__ */ jsxDEV("div", { className: "mt-12 text-gray-400", children: [
       /* @__PURE__ */ jsxDEV("p", { className: "mb-4", children: "How to Play:" }, void 0, false, {
         fileName: "<stdin>",
-        lineNumber: 441,
+        lineNumber: 493,
         columnNumber: 21
       }, this),
       /* @__PURE__ */ jsxDEV("div", { className: "text-left max-w-2xl mx-auto space-y-2", children: [
         /* @__PURE__ */ jsxDEV("p", { children: "\u2022 Choose your HUNTR/X member: Rumi, Mira, or Zoey" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 443,
+          lineNumber: 495,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("p", { children: "\u2022 Tap beat circles in rhythm to cast spells" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 444,
+          lineNumber: 496,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("p", { children: "\u2022 Perfect timing builds combo multipliers" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 445,
+          lineNumber: 497,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("p", { children: "\u2022 Defeat demons to protect Seoul and earn points" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 446,
+          lineNumber: 498,
           columnNumber: 25
         }, this),
         /* @__PURE__ */ jsxDEV("p", { children: "\u2022 Compete for the highest score on the leaderboard!" }, void 0, false, {
           fileName: "<stdin>",
-          lineNumber: 447,
+          lineNumber: 499,
           columnNumber: 25
         }, this)
       ] }, void 0, true, {
         fileName: "<stdin>",
-        lineNumber: 442,
+        lineNumber: 494,
         columnNumber: 21
       }, this)
     ] }, void 0, true, {
       fileName: "<stdin>",
-      lineNumber: 440,
+      lineNumber: 492,
       columnNumber: 17
     }, this)
   ] }, void 0, true, {
     fileName: "<stdin>",
-    lineNumber: 420,
+    lineNumber: 472,
     columnNumber: 13
   }, this) }, void 0, false, {
     fileName: "<stdin>",
-    lineNumber: 419,
+    lineNumber: 471,
     columnNumber: 9
   }, this);
 }
 const root = createRoot(document.getElementById("root"));
 root.render(/* @__PURE__ */ jsxDEV(App, {}, void 0, false, {
   fileName: "<stdin>",
-  lineNumber: 456,
+  lineNumber: 508,
   columnNumber: 13
 }));
