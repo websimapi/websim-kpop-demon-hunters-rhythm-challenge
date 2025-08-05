@@ -1,0 +1,26 @@
+{
+  "database": {
+    "schema": {
+      "game_scores": {
+        "id": {
+          "type": "text",
+          "description": "Unique identifier for each game session"
+        },
+        "character": {
+          "type": "text",
+          "description": "The HUNTR/X character chosen (Rumi, Mira, or Zoey)"
+        },
+        "score": {
+          "type": "integer",
+          "description": "Final score achieved in the rhythm game"
+        },
+        "final_combo": {
+          "type": "integer",
+          "description": "Highest combo multiplier achieved during the game"
+        }
+      }
+    },
+    "instructions": "This is a K-pop Demon Hunter rhythm game leaderboard. Players choose from three characters (Rumi, Mira, Zoey) and compete for high scores by hitting beats in rhythm to cast spells and defeat demons. Scores are tracked with character selection and combo achievements."
+  }
+}
+
