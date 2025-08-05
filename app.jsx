@@ -312,7 +312,7 @@ function GameScreen({ character, onGameEnd, onBack }) {
       beatTargets.map((beat) => /* @__PURE__ */ jsxDEV(
         "div",
         {
-          className: "beat-target absolute w-16 h-16 rounded-full border-4 cursor-pointer transition-all duration-75",
+          className: "beat-target absolute w-16 h-16 rounded-full border-4 cursor-pointer",
           style: {
             left: `${beat.x}%`,
             top: `${beat.y}%`,

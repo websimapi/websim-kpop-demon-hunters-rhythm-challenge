@@ -112,8 +112,12 @@ body {
 }
 
 .beat-target {
-    animation: none; /* Remove the original animation */
-    transition: all 0.1s ease-out;
+    animation: spinBeat 2s linear infinite;
+}
+
+@keyframes spinBeat {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 /* Add a subtle glow effect for beats near the hit zone */
